@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: changes/2025-03-02__create-db.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: changes/2025-04-15__alter-deleted-tokens.sql
+      relativeToChangeLogFile: true
