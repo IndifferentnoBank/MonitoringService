@@ -100,4 +100,14 @@ public class MonitoringService {
 
         return logs;
     }
+    @SneakyThrows
+    public List<LogProjection> getAllErrors(Authentication auth, String token) {
+        UUID userId = jwtTokenProvider.getUserIdFromAuthentication(auth);
+
+        if (tokenRepository.findById(token).isPresent()) {
+            throw new UnauthorizedException("The user is not authorized");
+        }
+
+        return new ArrayList<>(errorLogRepository.findLogs());
+    }
 }

@@ -34,4 +34,15 @@ public class MonitoringController {
         }
         throw new UnauthorizedException("Invalid Authorization header");
     }
+
+    @GetMapping("/error")
+    @SneakyThrows
+    public ResponseEntity<List<LogProjection>> getAllErrors(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader ) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+            String token = authorizationHeader.substring(7);
+            return ResponseEntity.ok(monitoringService.getAllErrors(auth, token));
+        }
+        throw new UnauthorizedException("Invalid Authorization header");
+    }
 }
