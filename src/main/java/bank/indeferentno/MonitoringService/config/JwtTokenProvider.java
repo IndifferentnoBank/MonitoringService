@@ -1,8 +1,6 @@
 package bank.indeferentno.MonitoringService.config;
 
-import bank.indeferentno.MonitoringService.entity.User;
 import bank.indeferentno.MonitoringService.exception.UnauthorizedException;
-import bank.indeferentno.MonitoringService.repository.UserRoleRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -24,20 +22,6 @@ public class JwtTokenProvider {
 
     @Value("${jwt.expiration}")
     private long jwtExpirationMs;
-
-    private final UserRoleRepository userRoleRepository;
-
-    public String generateToken(User user) {
-        return Jwts.builder()
-                .setSubject(user.getId().toString())
-                .claim("username", user.getEmail())
-                .claim("userId", user.getId().toString())
-                .claim("roles", userRoleRepository.getRolesByUser(user.getId()))
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
-                .signWith(SignatureAlgorithm.HS256, jwtSecret)
-                .compact();
-    }
 
     @SneakyThrows
     public UUID getUserIdFromAuthentication(Authentication authentication) {

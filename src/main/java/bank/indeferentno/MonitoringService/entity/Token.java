@@ -10,9 +10,9 @@ import lombok.NoArgsConstructor;
 @Entity
 @Data
 @NoArgsConstructor
-@AllArgsConstructor(staticName = "of")
+@AllArgsConstructor
 @Table(name = "deleted_tokens")
-public class DeletedTokens {
+public class Token {
     @Id
     private String id;
 }
