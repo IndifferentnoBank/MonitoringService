@@ -10,6 +10,8 @@ import bank.indeferentno.MonitoringService.model.input.RequestKafka;
 import bank.indeferentno.MonitoringService.model.input.ResponseKafka;
 import bank.indeferentno.MonitoringService.model.output.Log;
 import bank.indeferentno.MonitoringService.model.output.LogProjection;
+import bank.indeferentno.MonitoringService.model.output.SpanDto;
+import bank.indeferentno.MonitoringService.model.output.TraceDto;
 import bank.indeferentno.MonitoringService.repository.ErrorLogRepository;
 import bank.indeferentno.MonitoringService.repository.RequestLogRepository;
 import bank.indeferentno.MonitoringService.repository.ResponseLogRepository;
@@ -24,9 +26,9 @@ import org.apache.coyote.Request;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -38,20 +40,29 @@ public class MonitoringService {
     private final ResponseLogRepository responseLogRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final TokenRepository tokenRepository;
+    private final ObjectMapper objectMapper;
 
     @SneakyThrows
     public void parsingMessageRequest(String message) {
         try {
-            ObjectMapper objectMapper = new ObjectMapper();
             RequestKafka requestKafka = objectMapper.readValue(message, RequestKafka.class);
-            RequestLog requestLog = new RequestLog(UUID.randomUUID(), requestKafka.service_name(), requestKafka.event_type(),
-                    requestKafka.trace_id(), requestKafka.parent_span_id(), requestKafka.span_id(), requestKafka.timestamp(),
-                    requestKafka.log_message(), requestKafka.data().http_method(), requestKafka.data().url());
-
+            OffsetDateTime offsetDateTime = OffsetDateTime.parse(requestKafka.timestamp());
+            RequestLog requestLog = new RequestLog(
+                    UUID.randomUUID(),
+                    requestKafka.service_name(),
+                    requestKafka.event_type(),
+                    requestKafka.trace_id(),
+                    requestKafka.parent_span_id(),
+                    requestKafka.span_id(),
+                    offsetDateTime, // явный парсинг
+                    requestKafka.log_message(),
+                    requestKafka.data().http_method(),
+                    requestKafka.data().url()
+            );
             requestLogRepository.save(requestLog);
-        } catch (JsonProcessingException e) {
-            log.error("Error parsing the message: {}", message);
-            throw new RuntimeException(e);
+        } catch (Exception e) {
+            log.error("Error parsing message: {}, error: {}", message, e.getMessage());
+            throw e;
         }
     }
     @SneakyThrows
@@ -59,10 +70,18 @@ public class MonitoringService {
         try {
             ObjectMapper objectMapper = new ObjectMapper();
             ResponseKafka responseKafka = objectMapper.readValue(message, ResponseKafka.class);
-            ResponseLog responseLog = new ResponseLog(UUID.randomUUID(), responseKafka.service_name(), responseKafka.event_type(),
-                    responseKafka.trace_id(), responseKafka.span_id(), responseKafka.timestamp(),
-                    responseKafka.log_message(), responseKafka.duration_ms(), responseKafka.data().http_status());
-
+            OffsetDateTime offsetDateTime = OffsetDateTime.parse(responseKafka.timestamp());
+            ResponseLog responseLog = new ResponseLog(
+                    UUID.randomUUID(),
+                    responseKafka.service_name(),
+                    responseKafka.event_type(),
+                    responseKafka.trace_id(),
+                    responseKafka.span_id(),
+                    offsetDateTime,
+                    responseKafka.log_message(),
+                    responseKafka.duration_ms(),
+                    responseKafka.data().http_status()
+            );
             responseLogRepository.save(responseLog);
         } catch (JsonProcessingException e) {
             log.error("Error parsing the message: {}", message);
@@ -75,10 +94,16 @@ public class MonitoringService {
         try {
             ObjectMapper objectMapper = new ObjectMapper();
             ErrorKafka errorKafka = objectMapper.readValue(message, ErrorKafka.class);
-            ErrorLog errorLog = new ErrorLog(UUID.randomUUID(), errorKafka.service_name(), errorKafka.event_type(),
-                    errorKafka.trace_id(), errorKafka.span_id(), errorKafka.timestamp(),
-                    errorKafka.log_message());
-
+            OffsetDateTime offsetDateTime = OffsetDateTime.parse(errorKafka.timestamp());
+            ErrorLog errorLog = new ErrorLog(
+                    UUID.randomUUID(),
+                    errorKafka.service_name(),
+                    errorKafka.event_type(),
+                    errorKafka.trace_id(),
+                    errorKafka.span_id(),
+                    offsetDateTime,
+                    errorKafka.log_message()
+            );
             errorLogRepository.save(errorLog);
         } catch (JsonProcessingException e) {
             log.error("Error parsing the message: {}", message);
@@ -95,8 +120,24 @@ public class MonitoringService {
         }
 
         List<LogProjection> logs = new ArrayList<>();
-        logs.addAll(requestLogRepository.findLogs());
-        logs.addAll(responseLogRepository.findLogs());
+
+        requestLogRepository.findLogs().forEach(log ->
+                logs.add(new LogProjection(
+                        log.getServiceName(),
+                        log.getEventType(),
+                        log.getLogMessage(),
+                        log.getTimestamp()
+                ))
+        );
+
+        responseLogRepository.findLogs().forEach(log ->
+                logs.add(new LogProjection(
+                        log.getServiceName(),
+                        log.getEventType(),
+                        log.getLogMessage(),
+                        log.getTimestamp()
+                ))
+        );
 
         return logs;
     }
@@ -108,6 +149,87 @@ public class MonitoringService {
             throw new UnauthorizedException("The user is not authorized");
         }
 
-        return new ArrayList<>(errorLogRepository.findLogs());
+        List<LogProjection> errors = new ArrayList<>();
+
+        errorLogRepository.findErrors().forEach(error ->
+                errors.add(new LogProjection(
+                        error.getServiceName(),
+                        error.getEventType(),
+                        error.getLogMessage(),
+                        error.getTimestamp()
+                ))
+        );
+
+        return errors;
+    }
+
+    @SneakyThrows
+    public TraceDto getTraceByTraceId(Authentication auth, String token, String traceId) {
+        UUID userId = jwtTokenProvider.getUserIdFromAuthentication(auth);
+
+        if (tokenRepository.findById(token).isPresent()) {
+            throw new UnauthorizedException("The user is not authorized");
+        }
+
+        TraceDto trace = new TraceDto();
+        trace.setTraceId(traceId);
+
+        // Собираем все логи по trace_id
+        List<RequestLog> requestLogs = requestLogRepository.findByTraceId(traceId);
+        List<ResponseLog> responseLogs = responseLogRepository.findByTraceId(traceId);
+        List<ErrorLog> errorLogs = errorLogRepository.findByTraceId(traceId);
+
+        // Создаем мапу для быстрого доступа к span по id
+        Map<String, SpanDto> spanMap = new HashMap<>();
+
+        // Обрабатываем RequestLogs
+        requestLogs.forEach(log -> {
+            SpanDto span = new SpanDto();
+            span.setSpanId(log.getSpanId());
+            span.setParentSpanId(log.getParentSpanId());
+            span.setServiceName(log.getServiceName());
+
+            if ("http_request_out".equals(log.getEventType().toString())) {
+                span.setOperationName("OUT: " + log.getHttpMethod() + " " + log.getUrl());
+                span.setStartTime(log.getTimestamp());
+                span.getTags().put("http.method", log.getHttpMethod());
+                span.getTags().put("url", log.getUrl());
+            } else if ("http_request_in".equals(log.getEventType().toString())) {
+                span.setOperationName("IN: " + log.getHttpMethod() + " " + log.getUrl());
+                span.setStartTime(log.getTimestamp());
+                span.getTags().put("http.method", log.getHttpMethod());
+                span.getTags().put("url", log.getUrl());
+            }
+
+            spanMap.put(span.getSpanId(), span);
+        });
+
+        // Обрабатываем ResponseLogs
+        responseLogs.forEach(log -> {
+            SpanDto span = spanMap.get(log.getSpanId());
+            if (span != null) {
+                span.setEndTime(log.getTimestamp());
+                span.setDurationMs(log.getDurationMs());
+                if (log.getHttpStatus() != null) {
+                    span.getTags().put("http.status", log.getHttpStatus());
+                }
+            }
+        });
+
+        // Обрабатываем ErrorLogs
+        errorLogs.forEach(log -> {
+            SpanDto span = spanMap.get(log.getSpanId());
+            if (span != null) {
+                span.getTags().put("error", "true");
+                span.getTags().put("error.message", log.getLogMessage());
+            }
+        });
+
+        trace.setSpans(new ArrayList<>(spanMap.values()));
+        return trace;
+    }
+
+    public OffsetDateTime getTimestampAsOffsetDateTime(String timestamp) {
+        return OffsetDateTime.parse(timestamp, DateTimeFormatter.ISO_DATE_TIME);
     }
 }

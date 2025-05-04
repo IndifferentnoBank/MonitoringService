@@ -6,7 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -16,7 +16,6 @@ import java.util.UUID;
 @Table(name = "error_logs")
 public class ErrorLog {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private UUID id;
 
     @Column(name = "service_name")
@@ -31,7 +30,7 @@ public class ErrorLog {
     @Column(name = "span_id")
     private String spanId;
 
-    private LocalDateTime timestamp;
+    private OffsetDateTime timestamp;
 
     @Column(name = "log_message")
     private String logMessage;

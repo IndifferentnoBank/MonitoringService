@@ -1,10 +1,13 @@
 package bank.indeferentno.MonitoringService.model.output;
 
-import java.time.LocalDateTime;
+import bank.indeferentno.MonitoringService.model.enumeration.EventTypeRole;
 
-public interface LogProjection {
-    String getServiceName();
-    String getEventType();
-    String getLogMessage();
-    LocalDateTime getTimestamp();
-}
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+
+public record LogProjection(
+    String serviceName,
+    EventTypeRole eventType,
+    String logMessage,
+    OffsetDateTime timestamp
+) {}

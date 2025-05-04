@@ -10,8 +10,8 @@ import java.util.UUID;
 
 public interface RequestLogRepository extends JpaRepository<RequestLog, UUID> {
 
-    @Query("SELECT r.serviceName as serviceName, r.eventType as eventType, " +
-            "r.logMessage as logMessage, r.timestamp as timestamp " +
-            "FROM RequestLog r")
-    List<LogProjection> findLogs();
+    @Query("SELECT r FROM RequestLog r")
+    List<RequestLog> findLogs();
+
+    List<RequestLog> findByTraceId(String traceId);
 }

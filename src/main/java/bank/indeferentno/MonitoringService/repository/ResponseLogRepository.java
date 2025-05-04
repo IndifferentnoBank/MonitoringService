@@ -10,8 +10,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface ResponseLogRepository extends JpaRepository<ResponseLog, UUID> {
-    @Query("SELECT r.serviceName as serviceName, r.eventType as eventType, " +
-            "r.logMessage as logMessage, r.timestamp as timestamp " +
-            "FROM ResponseLog r")
-    List<LogProjection> findLogs();
+    @Query("SELECT r FROM ResponseLog r")
+    List<ResponseLog> findLogs();
+
+    List<ResponseLog> findByTraceId(String traceId);
 }

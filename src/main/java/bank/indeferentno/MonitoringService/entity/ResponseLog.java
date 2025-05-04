@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import org.apache.kafka.common.protocol.types.Field;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -17,7 +18,6 @@ import java.util.UUID;
 @Table(name = "response_logs")
 public class ResponseLog {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private UUID id;
 
     @Column(name = "service_name")
@@ -32,7 +32,7 @@ public class ResponseLog {
     @Column(name = "span_id")
     private String spanId;
 
-    private LocalDateTime timestamp;
+    private OffsetDateTime timestamp;
 
     @Column(name = "log_message")
     private String logMessage;

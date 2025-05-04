@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Slf4j
+@ControllerAdvice
 public class ControllerExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
