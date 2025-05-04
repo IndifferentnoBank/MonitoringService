@@ -20,9 +20,6 @@ public class JwtTokenProvider {
     @Value("${jwt.secret}")
     private String jwtSecret;
 
-    @Value("${jwt.expiration}")
-    private long jwtExpirationMs;
-
     @SneakyThrows
     public UUID getUserIdFromAuthentication(Authentication authentication) {
         UUID userId;
