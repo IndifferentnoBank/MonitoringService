@@ -8,10 +8,7 @@ import bank.indeferentno.MonitoringService.exception.UnauthorizedException;
 import bank.indeferentno.MonitoringService.model.input.ErrorKafka;
 import bank.indeferentno.MonitoringService.model.input.RequestKafka;
 import bank.indeferentno.MonitoringService.model.input.ResponseKafka;
-import bank.indeferentno.MonitoringService.model.output.Log;
-import bank.indeferentno.MonitoringService.model.output.LogProjection;
-import bank.indeferentno.MonitoringService.model.output.SpanDto;
-import bank.indeferentno.MonitoringService.model.output.TraceDto;
+import bank.indeferentno.MonitoringService.model.output.*;
 import bank.indeferentno.MonitoringService.repository.ErrorLogRepository;
 import bank.indeferentno.MonitoringService.repository.RequestLogRepository;
 import bank.indeferentno.MonitoringService.repository.ResponseLogRepository;
@@ -26,9 +23,11 @@ import org.apache.coyote.Request;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -229,7 +228,37 @@ public class MonitoringService {
         return trace;
     }
 
-    public OffsetDateTime getTimestampAsOffsetDateTime(String timestamp) {
-        return OffsetDateTime.parse(timestamp, DateTimeFormatter.ISO_DATE_TIME);
+    @SneakyThrows
+    public List<TraceInfoDto> getAllTraces(Authentication auth, String token) {
+        UUID userId = jwtTokenProvider.getUserIdFromAuthentication(auth);
+
+        if (tokenRepository.findById(token).isPresent()) {
+            throw new UnauthorizedException("The user is not authorized");
+        }
+
+        List<String> traceIds = requestLogRepository.findAllTraceIds();
+
+        return traceIds.stream()
+                .map(traceId -> {
+                    OffsetDateTime firstEventTime = requestLogRepository.findFirstEventTime(traceId)
+                            .orElse(OffsetDateTime.now());
+
+                    OffsetDateTime lastEventTime = requestLogRepository.findLastEventTime(traceId)
+                            .orElse(OffsetDateTime.now());
+
+                    Long spanCount = requestLogRepository.countSpansByTraceId(traceId);
+
+                    boolean hasErrors = errorLogRepository.existsByTraceIdCustom(traceId);
+
+                    return new TraceInfoDto(
+                            traceId,
+                            firstEventTime,
+                            lastEventTime,
+                            spanCount.intValue(),
+                            hasErrors
+                    );
+                })
+                .sorted(Comparator.comparing(TraceInfoDto::lastEventTime).reversed())
+                .collect(Collectors.toList());
     }
 }

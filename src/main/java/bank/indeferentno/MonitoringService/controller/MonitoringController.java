@@ -4,6 +4,7 @@ import bank.indeferentno.MonitoringService.exception.UnauthorizedException;
 import bank.indeferentno.MonitoringService.model.output.Log;
 import bank.indeferentno.MonitoringService.model.output.LogProjection;
 import bank.indeferentno.MonitoringService.model.output.TraceDto;
+import bank.indeferentno.MonitoringService.model.output.TraceInfoDto;
 import bank.indeferentno.MonitoringService.service.MonitoringService;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -51,6 +52,17 @@ public class MonitoringController {
         if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
             String token = authorizationHeader.substring(7);
             return ResponseEntity.ok(monitoringService.getTraceByTraceId(auth, token, traceId));
+        }
+        throw new UnauthorizedException("Invalid Authorization header");
+    }
+
+    @GetMapping("/traces")
+    @SneakyThrows
+    public ResponseEntity<List<TraceInfoDto>> getAllTraces(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+            String token = authorizationHeader.substring(7);
+            return ResponseEntity.ok(monitoringService.getAllTraces(auth, token));
         }
         throw new UnauthorizedException("Invalid Authorization header");
     }
